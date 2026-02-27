@@ -1,7 +1,54 @@
-Un cliente del ramo de autopartes tiene un problema de inventario, el cual se estima en $970 MM MXN, siendo que sus ventas anuales son de $1,250 MM MXN. El cliente proporciona las ventas mensuales por SKU durante el 2025, así como un forecast donde prevee la cantidad de unidades vendidas que tendrá en 2026.
-Calcula el monto total de ingresos que el cliente prevee tener en 2026, realizando un joint de la información que se tiene disponible (ventas mensuales 2025 tiene el precio del SKU y el forecast tiene la cantidad de SKUs que se venderán anualmente).
-Con la información de ventas mensuales, realiza un forecast nuevo que aterrice, en función de su data histórica, una mejor estimación de ventas (puedes utilizar los totales, o realizarlo a nivel SKU). Se evaluará el modelo que se utilice, así como los criterios utilizados en la selección de este. Considera cuál es el nivel de ventas en 2025.
-Selecciona al menos 20 SKUs de la lista, calcula el monto del inventario. Se evaluará el criterio utilizado para este cálculo, de acuerdo con las variables disponibles.
-Clasifica, según los días inventarios, los SKUs de la empresa. Establece criterios que permitan validar esta clasificación (Por ejemplo, Grupo A = <180 días inventarios).
-Considerando que el cliente requiere al menos de 120 días para poder realizar un pedido, realiza un nuevo forecast para los inventarios durante 2026 de estos SKUs. Compáralo con su proyección de ingresos (si es necesario, calcula una proyección para estos SKUs), y en función de esto, propón algún tipo de estrategia de acción inmediata (por ejemplo, no comprar durante los siguientes 6 meses). El objetivo es mantener al menos siempre un inventario de 400 días, por lo que en determinado momento, se debe volver a surtir, en función de las ventas, las existencias de estos SKUs.
-Señala si existen inconsistencias en la información y brevemente describe qué harías para resolverlo.
+# SmartCFOForecast
+
+Un cliente del ramo de autopartes tiene un problema de inventario, el cual se estima en $970 MM MXN, siendo que sus ventas anuales son de $1,250 MM MXN.
+
+## Objetivo del caso
+1. Calcular el monto total de ingresos previstos 2026 con un join entre forecast (unidades) y ventas 2025 (precio SKU).
+2. Construir un forecast 2026 alternativo con base en datos históricos 2025.
+3. Seleccionar al menos 20 SKUs y calcular monto de inventario.
+4. Clasificar SKUs por días de inventario (DIO) con criterios explícitos.
+5. Definir estrategia de resurtido para 2026 considerando lead time de 120 días y meta de 400 días de inventario.
+6. Señalar inconsistencias de información y cómo resolverlas.
+
+## Estructura
+- `src/download_data.py`: descarga archivos fuente (Google Drive / Google Sheets).
+- `src/build_master.py`: integra ventas y forecast base, generando parquet en `data/processed/`.
+- `src/analyze_forecast_inventory.py`: ejecuta el análisis de negocio completo y produce reporte final.
+- `reports/analysis_summary.md`: salida de hallazgos ejecutivos.
+
+## Setup
+```bash
+python -m pip install -r requirements.txt
+```
+
+## Ejecución end-to-end
+```bash
+python -m src.download_data
+python -m src.build_master
+python -m src.analyze_forecast_inventory
+```
+
+## Outputs esperados
+- `data/processed/ventas_sku_mes.parquet`
+- `data/processed/forecast_2026_anual.parquet`
+- `data/processed/forecast_2026_ingresos.parquet`
+- `data/processed/top20_inventory_strategy.csv`
+- `reports/analysis_summary.md`
+
+## Criterios analíticos implementados
+- Forecast cliente: `unidades_2026 * precio_prom_2025`.
+- Forecast alternativo: seasonal-naive (replica mes 2025 en 2026), adecuado cuando solo hay 12 meses históricos.
+- Valor inventario: `existencia * costo_uni_proxy` (proxy basado en precio promedio 2025 por SKU).
+- DIO: `existencia / (unidades_prom_mes / 30)`.
+- Segmentación DIO:
+  - Grupo A: `<180` días
+  - Grupo B: `180-399` días
+  - Grupo C: `400-699` días
+  - Grupo D: `>=700` días
+- Política sugerida:
+  - `DIO >= 520`: congelar compras 6 meses
+  - `400 <= DIO < 520`: monitorear, sin compra inmediata
+  - `DIO < 400`: plan de resurtido inmediato
+
+## Nota
+Si el archivo de inventario trae un layout distinto al esperado, se deben mapear columnas mínimas: `item/SKU` y `existencia`.
